@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+    <title>Hav Day Planner</title>
+    <link href="https://fonts.cdnfonts.com/css/comic-relief" rel="stylesheet">
 </head>
 <body>
     <input type="file" id="image-picker" accept="image/*" hidden>
@@ -26,7 +27,7 @@
         </ul>
     </div>
 
-    <button type="button" id="save-btn" class="save-btn">Save as image</button>
+    <button type="button" id="save-btn" class="save-btn">Зберегти</button>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script>
@@ -146,6 +147,8 @@
 
                 try {
                     restoreImages = await inlineImagesForExport(container);
+                    await document.fonts.load("52px 'Comic Relief'");
+                    await document.fonts.ready;
 
                     const canvas = await html2canvas(container, {
                         scale: 2,
@@ -268,7 +271,7 @@
             gap: 6px;
             padding: 12px 14px;
             box-sizing: border-box;
-            font-family: 'Comic Sans MS', 'Comic Sans', cursive;
+            font-family: 'Comic Relief', cursive;
             font-size: 52px;
             color: #fff;
         }
