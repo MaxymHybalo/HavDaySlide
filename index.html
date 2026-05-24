@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <input type="file" id="image-picker" accept="image/*" hidden>
+
+    <div class="container">
+        <ul>
+            <li></li>
+            <li></li>
+            <li></li>
+        </ul>
+        <ul>
+            <li></li>
+            <li></li>
+            <li></li>
+        </ul>
+        <ul>
+            <li></li>
+            <li></li>
+            <li></li>
+        </ul>
+    </div>
+
+    <button type="button" id="save-btn" class="save-btn">Save as image</button>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const picker = document.getElementById('image-picker');
+            let activeImageZone = null;
+
+            document.querySelectorAll('li').forEach((li) => {
+                const imageZone = document.createElement('div');
+                imageZone.className = 'tile-image';
+
+                const captionZone = document.createElement('div');
+                captionZone.className = 'tile-caption';
+
+                const prefix = document.createElement('span');
+                prefix.className = 'tile-caption-prefix';
+                prefix.textContent = 'x';
+
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.className = 'tile-caption-input';
+                input.placeholder = 'Caption';
+
+                captionZone.appendChild(prefix);
+                captionZone.appendChild(input);
+                li.appendChild(imageZone);
+                li.appendChild(captionZone);
+
+                imageZone.addEventListener('click', () => {
+                    activeImageZone = imageZone;
+                    picker.value = '';
+                    picker.click();
+                });
+            });
+
+            picker.addEventListener('change', () => {
+                const file = picker.files[0];
+                if (!file || !activeImageZone) return;
+
+                const reader = new FileReader();
+                reader.onload = () => {
+                    const img = activeImageZone.querySelector('img') || document.createElement('img');
+                    img.src = reader.result;
+                    if (!img.parentElement) activeImageZone.appendChild(img);
+                };
+                reader.readAsDataURL(file);
+            });
+
+            const saveBtn = document.getElementById('save-btn');
+            const container = document.querySelector('.container');
+
+            function parseBackgroundUrl(backgroundImage) {
+                const match = backgroundImage.match(/url\(["']?(.+?)["']?\)/);
+                return match ? match[1] : null;
+            }
+
+            function blobToDataURL(blob) {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(reader.result);
+                    reader.onerror = reject;
+                    reader.readAsDataURL(blob);
+                });
+            }
+
+            function loadImageAsDataURL(src) {
+                if (!src || src.startsWith('data:')) {
+                    return Promise.resolve(src);
+                }
+
+                return fetch(src)
+                    .then((res) => res.blob())
+                    .then(blobToDataURL)
+                    .catch(() => new Promise((resolve, reject) => {
+                        const xhr = new XMLHttpRequest();
+                        xhr.open('GET', src);
+                        xhr.responseType = 'blob';
+                        xhr.onload = () => {
+                            if (xhr.status !== 0 && xhr.status !== 200) {
+                                reject(new Error(`Failed to load image: ${src}`));
+                                return;
+                            }
+                            blobToDataURL(xhr.response).then(resolve).catch(reject);
+                        };
+                        xhr.onerror = () => reject(new Error(`Failed to load image: ${src}`));
+                        xhr.send();
+                    }));
+            }
+
+            async function inlineImagesForExport(root) {
+                const restore = [];
+
+                const bgUrl = parseBackgroundUrl(getComputedStyle(root).backgroundImage);
+                if (bgUrl) {
+                    const originalBg = root.style.backgroundImage;
+                    const dataUrl = await loadImageAsDataURL(bgUrl);
+                    root.style.backgroundImage = `url("${dataUrl}")`;
+                    restore.push(() => { root.style.backgroundImage = originalBg; });
+                }
+
+                for (const img of root.querySelectorAll('img')) {
+                    const originalSrc = img.src;
+                    if (!originalSrc.startsWith('data:')) {
+                        const dataUrl = await loadImageAsDataURL(originalSrc);
+                        img.src = dataUrl;
+                        restore.push(() => { img.src = originalSrc; });
+                    }
+                }
+
+                return () => restore.reverse().forEach((fn) => fn());
+            }
+
+            saveBtn.addEventListener('click', async () => {
+                saveBtn.disabled = true;
+                saveBtn.textContent = 'Saving…';
+                let restoreImages = null;
+
+                try {
+                    restoreImages = await inlineImagesForExport(container);
+
+                    const canvas = await html2canvas(container, {
+                        scale: 2,
+                        useCORS: false,
+                        allowTaint: false,
+                        backgroundColor: null,
+                        onclone(doc) {
+                            doc.querySelectorAll('.tile-caption-input').forEach((input) => {
+                                const span = doc.createElement('span');
+                                span.textContent = input.value;
+                                span.style.flex = '1';
+                                span.style.minWidth = '0';
+                                input.replaceWith(span);
+                            });
+                        },
+                    });
+
+                    const link = document.createElement('a');
+                    link.download = 'layout.png';
+                    link.href = canvas.toDataURL('image/png');
+                    console.log(link.href);
+                    link.click();
+                } catch (err) {
+                    alert('Could not save image. Make sure image.jpg is in the same folder as this page.');
+                    console.error(err);
+                } finally {
+                    if (restoreImages) restoreImages();
+                    saveBtn.disabled = false;
+                    saveBtn.textContent = 'Save as image';
+                }
+            });
+        });
+    </script>
+    <style>
+        body {
+            box-sizing: border-box;
+        }
+        .save-btn {
+            display: block;
+            margin: 16px auto 0;
+            padding: 12px 24px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        .save-btn:disabled {
+            opacity: 0.6;
+            cursor: wait;
+        }
+
+        .container {
+            background-image: url('image.jpg');
+            background-position: center;
+            background-repeat: no-repeat;
+            background-size: cover;
+            width: 1280px;
+            height: 853px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding-left: 100px;
+            padding-right: 100px;
+        }
+        ul {
+            list-style-type: none;
+            display: flex;
+            flex-direction: row;
+            justify-content: center;
+            width: 100%;
+            gap: 26px;
+            margin: 0;
+            padding: 0;
+            margin-bottom: 26px;
+        }
+
+        li {
+            position: relative;
+            display: flex;
+            align-items: stretch;
+            border: 2px solid #e5dede;
+            border-radius: 12px;
+            width: 30%;
+            height: 160px;
+            overflow: hidden;
+        }
+
+        li::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-color: white;
+            opacity: 0.5;
+            border-radius: 10px;
+            z-index: 0;
+        }
+
+        .tile-image {
+            position: relative;
+            z-index: 1;
+            flex: 0 0 45%;
+            height: 100%;
+            padding-left: 20px;
+            box-sizing: border-box;
+            cursor: pointer;
+        }
+
+        .tile-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+            border-radius: 10px 0 0 10px;
+            opacity: 1;
+        }
+
+        .tile-caption {
+            position: relative;
+            z-index: 1;
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 12px 14px;
+            box-sizing: border-box;
+            font-family: 'Comic Sans MS', 'Comic Sans', cursive;
+            font-size: 52px;
+            color: #fff;
+        }
+
+        .tile-caption-prefix {
+            flex-shrink: 0;
+            line-height: 1;
+            user-select: none;
+        }
+
+        .tile-caption-input {
+            flex: 1;
+            min-width: 0;
+            padding: 10px 0;
+            border: none;
+            border-radius: 0;
+            background: transparent;
+            font: inherit;
+            color: inherit;
+            outline: none;
+            box-sizing: border-box;
+        }
+
+        .tile-caption-input:focus {
+            background: transparent;
+            outline: none;
+        }
+
+        .tile-caption-input::placeholder {
+            color: transparent;
+        }
+        
+    </style>
+</body>
+</html>
