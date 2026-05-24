@@ -166,7 +166,6 @@
                     const link = document.createElement('a');
                     link.download = 'layout.png';
                     link.href = canvas.toDataURL('image/png');
-                    console.log(link.href);
                     link.click();
                 } catch (err) {
                     alert('Could not save image. Make sure image.jpg is in the same folder as this page.');
