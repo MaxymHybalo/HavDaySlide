@@ -147,7 +147,10 @@
 
                 try {
                     restoreImages = await inlineImagesForExport(container);
-                    await document.fonts.load("52px 'Comic Relief'");
+                    const captionFontSize = getComputedStyle(document.documentElement)
+                        .getPropertyValue('--caption-font-size')
+                        .trim();
+                    await document.fonts.load(`${captionFontSize} 'Comic Relief'`);
                     await document.fonts.ready;
 
                     const canvas = await html2canvas(container, {
@@ -182,6 +185,10 @@
         });
     </script>
     <style>
+        :root {
+            --caption-font-size: 72px;
+        }
+
         body {
             box-sizing: border-box;
         }
@@ -272,7 +279,7 @@
             padding: 12px 14px;
             box-sizing: border-box;
             font-family: 'Comic Relief', cursive;
-            font-size: 52px;
+            font-size: var(--caption-font-size);
             color: #fff;
         }
 
